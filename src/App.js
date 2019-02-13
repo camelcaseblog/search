@@ -63,7 +63,7 @@ const urlParams = (() => {
   });
   return vars;
 })();
-const { searchType } = urlParams;
+const { searchType, type } = urlParams;
 
 class App extends Component {
   startsWithFilter = inputValue =>
@@ -114,16 +114,19 @@ class App extends Component {
   loadOptions = (inputValue, callback) => {
     inputValue = (inputValue || '').toLocaleLowerCase();
     let valuesToShow;
-    switch (searchType) {
+    switch (searchType || type) {
       case 'includes':
+      case 'i':
         console.log('includes');
         valuesToShow = this.includesFilter(inputValue);
         break;
       case 'levenshtein':
+      case 'l':
         console.log('levenshtein');
         valuesToShow = this.levenshteinFilter(inputValue);
         break;
       case 'similarity':
+      case 's':
         console.log('similarity');
         valuesToShow = this.similarityFilter(inputValue);
         break;
