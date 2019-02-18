@@ -5,6 +5,7 @@
     "buren",
     "gamaliel",
     "milhouse",
-    "minisearch"
+    "minisearch",
+    "trigram"
   ]
 }

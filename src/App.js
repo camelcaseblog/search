@@ -6,6 +6,7 @@ import {
   createGenerateClassName,
   jssPreset
 } from '@material-ui/core/styles';
+import Select from 'react-select';
 import { withStyles } from '@material-ui/core/styles';
 import TextField from '@material-ui/core/TextField';
 import JssProvider from 'react-jss/lib/JssProvider';
@@ -17,7 +18,7 @@ import TableRow from '@material-ui/core/TableRow';
 import Paper from '@material-ui/core/Paper';
 import { create as jssCreate } from 'jss';
 import jssRtl from 'jss-rtl';
-import stringSimilarity from 'string-similarity';
+import { compareTwoStrings as diceCompare } from 'string-similarity';
 import levenshtein from 'fast-levenshtein';
 import _ from 'lodash';
 
@@ -69,6 +70,14 @@ const values = [
   'Donald Trump'
 ];
 
+const searchTypesOptions = [
+  { value: 'levenshtein', label: 'Levenshtein' },
+  { value: 'startsWith', label: 'Starts With' },
+  { value: 'includes', label: 'Includes' },
+  { value: 'trigram', label: 'Trigram' },
+  { value: 'dice', label: 'Dice coefficient' }
+];
+
 const styles = theme => ({
   root: {
     maxWidth: 300,
@@ -80,19 +89,6 @@ const styles = theme => ({
   }
 });
 
-const urlParams = (() => {
-  var vars = {};
-  window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(
-    m,
-    key,
-    value
-  ) {
-    vars[key] = value;
-  });
-  return vars;
-})();
-const { searchType, type } = urlParams;
-
 const rtlMaterialUiTheme = createMuiTheme({
   direction: 'rtl',
   typography: { useNextVariants: true }
@@ -101,61 +97,49 @@ const jss = jssCreate({ plugins: [...jssPreset().plugins, jssRtl()] });
 const generateClassName = createGenerateClassName();
 
 class App extends Component {
-  state = { inputValue: '', values };
-  startsWithFilter = inputValue =>
-    values.filter(v => v.toLocaleLowerCase().startsWith(inputValue));
+  state = {
+    inputValue: '',
+    values,
+    selectedSearchTypeOption: '',
+    searchType: ''
+  };
+  startsWithFilter = inputValue => values.filter(v => v.startsWith(inputValue));
   includesFilter = inputValue =>
     values.filter(v => v.toLocaleLowerCase().includes(inputValue));
-  levenshteinFilter = inputValue => {
+  similarityFilter = compareTwoStrings => inputValue => {
     let options = values.map(v => ({
       value: v,
-      dist:
-        levenshtein.get(v.toLocaleLowerCase(), inputValue, {
-          useCollator: true
-        }) / Math.max(inputValue.length, v.length)
-    }));
-    return options;
-  };
-  levenshteinFilter = inputValue => {
-    let options = values.map(v => ({
-      value: v,
-      dist:
-        levenshtein.get(v.toLocaleLowerCase(), inputValue, {
-          useCollator: true
-        }) / Math.max(inputValue.length, v.length)
+      dist: compareTwoStrings(v.toLocaleLowerCase(), inputValue)
     }));
     options = options = _.sortBy(options, ['dist']);
     return options;
   };
-  similarityFilter = inputValue => {
-    let options = values.map(v => ({
-      value: v,
-      dist:
-        1 -
-        stringSimilarity.compareTwoStrings(v.toLocaleLowerCase(), inputValue)
-    }));
-    options = options = _.sortBy(options, ['dist']);
-    return options;
-  };
+  levenshteinFilter = this.similarityFilter(
+    (a, b) => levenshtein.get(a, b, { useCollator: true }) / Math.max(a, b)
+  );
+  trigramFilter = this.similarityFilter(
+    (a, b) => levenshtein.get(a, b, { useCollator: true }) / Math.max(a, b)
+  );
+  diceFilter = this.similarityFilter((a, b) => 1 - diceCompare(a, b));
   loadOptions = inputValue => {
     inputValue = (inputValue || '').toLocaleLowerCase();
     let values;
-    switch (searchType || type) {
+    switch (this.state.searchType) {
       case 'includes':
-      case 'i':
         values = this.includesFilter(inputValue);
         break;
       case 'levenshtein':
-      case 'l':
         values = this.levenshteinFilter(inputValue);
         break;
-      case 'startsWith':
-        values = this.startsWithFilter(inputValue);
+      case 'trigram':
+        values = this.trigramFilter(inputValue);
         break;
-      case 'similarity':
-      case 's':
+      case 'dice':
+        values = this.diceFilter(inputValue);
+        break;
+      case 'startsWith':
       default:
-        values = this.similarityFilter(inputValue);
+        values = this.startsWithFilter(inputValue);
         break;
     }
     this.setState({ values });
@@ -170,6 +154,18 @@ class App extends Component {
       <div dir="rtl">
         <JssProvider jss={jss} generateClassName={generateClassName}>
           <MuiThemeProvider theme={rtlMaterialUiTheme}>
+            <div style={{ width: '300px' }}>
+              <Select
+                handleChange={o =>
+                  this.setState({
+                    selectedSearchTypeOption: o,
+                    searchType: o.value
+                  })
+                }
+                value={this.state.selectedSearchTypeOption}
+                options={searchTypesOptions}
+              />
+            </div>
             <TextField
               onChange={this.handleChange}
               id="outlined-search"
