@@ -6,7 +6,6 @@ import {
   createGenerateClassName,
   jssPreset
 } from '@material-ui/core/styles';
-import Select from 'react-select';
 import { withStyles } from '@material-ui/core/styles';
 import TextField from '@material-ui/core/TextField';
 import JssProvider from 'react-jss/lib/JssProvider';
@@ -18,57 +17,14 @@ import TableRow from '@material-ui/core/TableRow';
 import Paper from '@material-ui/core/Paper';
 import { create as jssCreate } from 'jss';
 import jssRtl from 'jss-rtl';
-import { compareTwoStrings as diceCompare } from 'string-similarity';
-import levenshtein from 'fast-levenshtein';
-import _ from 'lodash';
-
-const values = [
-  'George Washington',
-  'John Adams',
-  'Thomas Jefferson',
-  'James Madison',
-  'James Monroe',
-  'John Quincy Adams',
-  'Andrew Jackson',
-  'Martin Van Buren',
-  'William Henry Harrison',
-  'John Tyler',
-  'James K. Polk',
-  'Zachary Taylor',
-  'Millard Fillmore',
-  'Franklin Pierce',
-  'James Buchanan',
-  'Abraham Lincoln',
-  'Andrew Johnson',
-  'Ulysses S. Grant',
-  'Rutherford B. Hayes',
-  'James A. Garfield',
-  'Chester A. Arthur',
-  'Grover Cleveland',
-  'Benjamin Harrison',
-  'Grover Cleveland',
-  'William McKinley',
-  'Theodore Roosevelt',
-  'William Howard Taft',
-  'Woodrow Wilson',
-  'Warren G. Harding',
-  'Calvin Coolidge',
-  'Herbert Hoover',
-  'Franklin D. Roosevelt',
-  'Harry S. Truman',
-  'Dwight D. Eisenhower',
-  'John F. Kennedy',
-  'Lyndon B. Johnson',
-  'Richard Nixon',
-  'Gerald Ford',
-  'Jimmy Carter',
-  'Ronald Reagan',
-  'George H. W. Bush',
-  'Bill Clinton',
-  'George W. Bush',
-  'Barack Obama',
-  'Donald Trump'
-];
+import {
+  startsWithFilter,
+  diceFilter,
+  trigramFilter,
+  levenshteinFilter,
+  includesFilter
+} from './filter_functions';
+import { MenuItem } from '@material-ui/core';
 
 const searchTypesOptions = [
   { value: 'levenshtein', label: 'Levenshtein' },
@@ -86,6 +42,14 @@ const styles = theme => ({
   },
   table: {
     maxWidth: 300
+  },
+  menu: {
+    width: 150
+  },
+  select: {
+    marginLeft: theme.spacing.unit,
+    marginRight: theme.spacing.unit,
+    width: 150
   }
 });
 
@@ -99,47 +63,28 @@ const generateClassName = createGenerateClassName();
 class App extends Component {
   state = {
     inputValue: '',
-    values,
-    selectedSearchTypeOption: '',
+    values: [],
     searchType: ''
   };
-  startsWithFilter = inputValue => values.filter(v => v.startsWith(inputValue));
-  includesFilter = inputValue =>
-    values.filter(v => v.toLocaleLowerCase().includes(inputValue));
-  similarityFilter = compareTwoStrings => inputValue => {
-    let options = values.map(v => ({
-      value: v,
-      dist: compareTwoStrings(v.toLocaleLowerCase(), inputValue)
-    }));
-    options = options = _.sortBy(options, ['dist']);
-    return options;
-  };
-  levenshteinFilter = this.similarityFilter(
-    (a, b) => levenshtein.get(a, b, { useCollator: true }) / Math.max(a, b)
-  );
-  trigramFilter = this.similarityFilter(
-    (a, b) => levenshtein.get(a, b, { useCollator: true }) / Math.max(a, b)
-  );
-  diceFilter = this.similarityFilter((a, b) => 1 - diceCompare(a, b));
   loadOptions = inputValue => {
     inputValue = (inputValue || '').toLocaleLowerCase();
     let values;
     switch (this.state.searchType) {
       case 'includes':
-        values = this.includesFilter(inputValue);
+        values = includesFilter(inputValue);
         break;
       case 'levenshtein':
-        values = this.levenshteinFilter(inputValue);
+        values = levenshteinFilter(inputValue);
         break;
       case 'trigram':
-        values = this.trigramFilter(inputValue);
+        values = trigramFilter(inputValue);
         break;
       case 'dice':
-        values = this.diceFilter(inputValue);
+        values = diceFilter(inputValue);
         break;
       case 'startsWith':
       default:
-        values = this.startsWithFilter(inputValue);
+        values = startsWithFilter(inputValue);
         break;
     }
     this.setState({ values });
@@ -148,34 +93,44 @@ class App extends Component {
     this.setState({ inputValue });
     this.loadOptions(inputValue);
   };
+  searchTypeChanged = ({ target: { value } }) => {
+    this.setState({ searchType: value }, () =>
+      this.loadOptions(this.state.inputValue)
+    );
+  };
+
   render() {
     const { classes } = this.props;
     return (
       <div dir="rtl">
         <JssProvider jss={jss} generateClassName={generateClassName}>
           <MuiThemeProvider theme={rtlMaterialUiTheme}>
-            <div style={{ width: '300px' }}>
-              <Select
-                handleChange={o =>
-                  this.setState({
-                    selectedSearchTypeOption: o,
-                    searchType: o.value
-                  })
-                }
-                value={this.state.selectedSearchTypeOption}
-                options={searchTypesOptions}
-              />
-            </div>
-            <TextField
-              onChange={this.handleChange}
-              id="outlined-search"
-              label="הקלד לחיפוש נשיא"
-              inputProps={{ dir: 'rtl' }}
-              type="search"
-              margin="normal"
-              variant="outlined"
-            />
             <Paper className={classes.root}>
+              <TextField
+                id="standard-select-currency"
+                select
+                label="סוג חיפוש"
+                className={classes.select}
+                value={this.state.searchType}
+                onChange={this.searchTypeChanged}
+                SelectProps={{ MenuProps: { className: classes.menu } }}
+                margin="normal"
+              >
+                {searchTypesOptions.map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                onChange={this.handleChange}
+                id="outlined-search"
+                label="הקלד לחיפוש נשיא"
+                inputProps={{ dir: 'rtl' }}
+                type="search"
+                margin="normal"
+                variant="outlined"
+              />
               <Table className={classes.table}>
                 <TableHead>
                   <TableRow>
